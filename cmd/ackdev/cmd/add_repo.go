@@ -14,7 +14,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -22,10 +21,6 @@ import (
 	"github.com/aws-controllers-k8s/dev-tools/pkg/repository"
 	"github.com/aws-controllers-k8s/dev-tools/pkg/util"
 	"github.com/spf13/cobra"
-)
-
-var (
-	ErrRepositoryAlreadyAdded = errors.New("repository has already been added")
 )
 
 var addRepositoryCmd = &cobra.Command{
@@ -37,7 +32,7 @@ var addRepositoryCmd = &cobra.Command{
 
 func addRepository(cmd *cobra.Command, args []string) error {
 	for _, service := range args {
-		service = strings.ToLower(args[0])
+		service = strings.ToLower(service)
 
 		ctx := cmd.Context()
 
@@ -48,7 +43,8 @@ func addRepository(cmd *cobra.Command, args []string) error {
 
 		// Check it doesn't already exist in the configuration
 		if util.InStrings(service, cfg.Repositories.Services) {
-			return ErrRepositoryAlreadyAdded
+			fmt.Printf("repository for service %s has already been added\n", service)
+			continue
 		}
 
 		repoManager, err := repository.NewManager(cfg)

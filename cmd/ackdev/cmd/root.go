@@ -24,15 +24,24 @@ var (
 	ackConfigPath string
 )
 
+const (
+	appName      = "ack-dev"
+	appShortDesc = "ack-dev - manage ACK controllers and repositories"
+	appLongDesc  = `ack-dev
+
+A tool to manage ACK controllers and repositories`
+)
+
 func init() {
 	rootCmd.PersistentFlags().StringVar(&ackConfigPath, "config-file", defaultConfigPath, "ackdev configuration file path")
 
-	rootCmd.AddCommand(listCmd)
-	rootCmd.AddCommand(editCmd)
 	rootCmd.AddCommand(addCmd)
-	rootCmd.AddCommand(versionCmd)
-	rootCmd.AddCommand(setupCmd)
+	rootCmd.AddCommand(editCmd)
 	rootCmd.AddCommand(ensureCmd)
+	rootCmd.AddCommand(generateCmd)
+	rootCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(setupCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 var rootCmd = &cobra.Command{

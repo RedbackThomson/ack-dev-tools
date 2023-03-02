@@ -10,8 +10,11 @@ GO_LDFLAGS=-ldflags "-X $(PKG_PATH)/version.GitVersion=$(VERSION) \
 			-X $(PKG_PATH)/version.GitCommit=$(GITCOMMIT) \
 			-X $(PKG_PATH)/version.BuildDate=$(BUILDDATE)"
 
+GO_CMD_FLAGS=-tags codegen -gcflags="all=-N -l" 
+GO_CMD_LOCAL_FLAGS=-modfile=go.local.mod $(GO_CMD_FLAGS)
+
 build:
-	go build ${GO_LDFLAGS} -o ./bin/ackdev ./cmd/ackdev/main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ${GO_CMD_FLAGS} ${GO_LDFLAGS} -o ./bin/ackdev ./cmd/ackdev/main.go
 
 install: build
 	cp ./bin/ackdev $(shell go env GOPATH)/bin/ackdev

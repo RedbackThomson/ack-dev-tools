@@ -6,6 +6,12 @@ import (
 )
 
 var (
+	subtle    = lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
+	highlight = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
+	special   = lipgloss.AdaptiveColor{Light: "#43BF6D", Dark: "#73F59F"}
+)
+
+var (
 	BaseStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderForeground(lipgloss.Color("240"))
@@ -34,6 +40,11 @@ var (
 			Background(lipgloss.Color("#7D56F4")).
 			Padding(0, 1).
 			Margin(1, 0, 1, 1)
+
+	CheckMark = lipgloss.NewStyle().
+			Foreground(special).
+			SetString("✓").
+			String()
 )
 
 var (

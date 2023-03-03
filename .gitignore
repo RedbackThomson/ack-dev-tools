@@ -1,3 +1,4 @@
 ./config.yaml
 ./test.yaml
 bin
+debug.log

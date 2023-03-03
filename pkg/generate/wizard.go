@@ -32,50 +32,77 @@ func (w *Wizard) getCRDByKind(kind string) *ackmodel.CRD {
 	return crd
 }
 
-func (w Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	var cmds []tea.Cmd
-	switch msg := msg.(type) {
-	case views.ReturnMessage:
-		w.state = resourcesSummary
-	case views.SelectResource:
-		w.selectedResourceKind = msg.ResourceKind
-		w.state = resourceDetails
-	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, constants.Keymap.Quit):
-			w.quitting = true
-			return w, tea.Quit
-		}
-	case tea.WindowSizeMsg:
-		headerHeight := lipgloss.Height(views.HeaderView(w.config.ModelName))
-		constants.WindowSize = msg
-		// Subtract 2 for the borders
-		constants.ContainerViewSize = tea.WindowSizeMsg{Height: msg.Height - 2 - headerHeight, Width: msg.Width - 2}
-		constants.UsableViewSize = tea.WindowSizeMsg{Height: msg.Height - 4 - headerHeight, Width: msg.Width - 4}
-	}
-
+func (w Wizard) currentView() views.View {
 	switch w.state {
-	case resourcesSummary:
-		newResourcesList, newCmd := w.resourceTable.Update(msg)
-		resourcesList, ok := newResourcesList.(views.ResourceTable)
-		if !ok {
-			panic(fmt.Errorf(ErrAssertUpdate, "ResourceList"))
-		}
-		w.resourceTable = resourcesList
-		cmd = newCmd
 	case resourceDetails:
-		w.selectedResourceForm = *views.NewResourceForm(w.getCRDByKind(w.selectedResourceKind), w.upsertResourceConfig(w.selectedResourceKind))
-		newSelectedResourceForm, newCmd := w.selectedResourceForm.Update(msg)
-		selectedResourceForm, ok := newSelectedResourceForm.(views.ResourceForm)
+		return w.selectedResourceForm
+	case resourcesSummary:
+		fallthrough
+	default:
+		return w.resourceTable
+	}
+}
+
+func (w *Wizard) replaceCurrentView(r tea.Model) {
+	switch w.state {
+	case resourceDetails:
+		selectedResourceForm, ok := r.(views.ResourceForm)
 		if !ok {
 			panic(fmt.Errorf(ErrAssertUpdate, "ResourceForm"))
 		}
 		w.selectedResourceForm = selectedResourceForm
-		cmd = newCmd
+	case resourcesSummary:
+		fallthrough
+	default:
+		resourceTable, ok := r.(views.ResourceTable)
+		if !ok {
+			panic(fmt.Errorf(ErrAssertUpdate, "ResourceTable"))
+		}
+		w.resourceTable = resourceTable
+	}
+}
+
+func (w Wizard) recalculateScreenSizes(view views.View, windowSize tea.WindowSizeMsg) {
+	headerHeight := lipgloss.Height(views.HeaderView(w.config.ModelName))
+	footerHeight := lipgloss.Height(views.FooterView(w.help, view.Keymap()))
+
+	constants.WindowSize = windowSize
+	// Subtract 2 for the borders
+	constants.ContainerViewSize = tea.WindowSizeMsg{Height: windowSize.Height - 2 - headerHeight - footerHeight, Width: windowSize.Width - 2}
+	constants.UsableViewSize = tea.WindowSizeMsg{Height: constants.ContainerViewSize.Height - 2, Width: constants.ContainerViewSize.Width - 2}
+}
+
+func (w Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	view := w.currentView()
+
+	var cmds []tea.Cmd
+	switch msg := msg.(type) {
+	case views.ReturnMessage:
+		w.state = resourcesSummary
+		return w, nil
+	case views.SelectResource:
+		crd := w.getCRDByKind(msg.ResourceKind)
+		w.selectedResourceForm = *views.NewResourceForm(crd, w.upsertResourceConfig(msg.ResourceKind))
+		w.state = resourceDetails
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, key.NewBinding(key.WithKeys("q", "ctrl+c"))):
+			w.quitting = true
+			return w, tea.Quit
+			// TODO: Resizing down when ShowAll = false breakes layout
+			// case key.Matches(msg, key.NewBinding(key.WithKeys("?", "h"))):
+			// 	w.help.ShowAll = !w.help.ShowAll
+			// 	w.recalculateScreenSizes(view, constants.WindowSize)
+			// 	return w, nil
+		}
+	case tea.WindowSizeMsg:
+		w.recalculateScreenSizes(view, msg)
 	}
 
-	cmds = append(cmds, cmd)
+	updatedView, newCmd := w.currentView().Update(msg)
+	w.replaceCurrentView(updatedView)
+
+	cmds = append(cmds, newCmd)
 
 	return w, tea.Batch(cmds...)
 }
@@ -87,23 +114,16 @@ func (w Wizard) View() string {
 
 	header := views.HeaderView(fmt.Sprintf("%s-controller", w.config.ModelName))
 
-	var view string
+	view := w.currentView()
 
-	switch w.state {
-	case resourceDetails:
-		view = w.selectedResourceForm.View()
-	case resourcesSummary:
-		fallthrough
-	default:
-		view = w.resourceTable.View()
-	}
-
-	view = styles.FocusedStyle.
+	renderedView := styles.FocusedStyle.
 		Width(constants.ContainerViewSize.Width).
 		Height(constants.ContainerViewSize.Height).
-		Render(view)
+		Render(view.View())
 
-	return lipgloss.JoinVertical(lipgloss.Top, header, view)
+	footer := views.FooterView(w.help, view.Keymap())
+
+	return lipgloss.JoinVertical(lipgloss.Top, header, renderedView, footer)
 }
 
 func (w Wizard) Init() tea.Cmd {

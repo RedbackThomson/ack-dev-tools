@@ -2,30 +2,49 @@ package views
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/samber/lo"
 
 	ackconfig "github.com/aws-controllers-k8s/code-generator/pkg/config"
 	ackmodel "github.com/aws-controllers-k8s/code-generator/pkg/model"
 	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/components/button"
-	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/constants"
 	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/styles"
+	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/utils"
 )
 
 var (
-	SpecFieldsButtonName   string = "spec"
-	StatusFieldsButtonName string = "status"
+	SpecFieldsButtonID   string = "spec"
+	StatusFieldsButtonID string = "status"
 )
 
 type resourceFormKeyMap struct {
 	LineUp   key.Binding
 	LineDown key.Binding
+	Quit     key.Binding
 }
 
-var ResourceFormKeyMap = resourceFormKeyMap{
+// ShortHelp returns keybindings to be shown in the mini help view. It's part
+// of the key.Map interface.
+func (k resourceFormKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Quit}
+}
+
+// FullHelp returns keybindings for the expanded help view. It's part of the
+// key.Map interface.
+func (k resourceFormKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.LineUp, k.LineDown}, // first column
+		{k.Quit},               // second column
+	}
+}
+
+var resourceFormKeys = resourceFormKeyMap{
 	LineUp: key.NewBinding(
 		key.WithKeys("up", "k"),
 		key.WithHelp("↑/k", "up"),
@@ -34,14 +53,26 @@ var ResourceFormKeyMap = resourceFormKeyMap{
 		key.WithKeys("down", "j"),
 		key.WithHelp("↓/j", "down"),
 	),
+	Quit: key.NewBinding(
+		key.WithKeys("esc"),
+		key.WithHelp("esc", "go back"),
+	),
+}
+
+type resourceFormInputs struct {
+	specFieldsButton   button.Model
+	statusFieldsButton button.Model
 }
 
 type ResourceForm struct {
 	crd    *ackmodel.CRD
 	config *ackconfig.ResourceConfig
 
-	specFieldsButton   button.Model
-	statusFieldsButton button.Model
+	inputs *resourceFormInputs
+}
+
+func (m ResourceForm) Keymap() help.KeyMap {
+	return resourceFormKeys
 }
 
 func NewResourceForm(crd *ackmodel.CRD, config *ackconfig.ResourceConfig) *ResourceForm {
@@ -49,13 +80,62 @@ func NewResourceForm(crd *ackmodel.CRD, config *ackconfig.ResourceConfig) *Resou
 		crd:    crd,
 		config: config,
 
-		specFieldsButton:   button.New(SpecFieldsButtonName, fmt.Sprintf("%d fields", len(crd.SpecFields))),
-		statusFieldsButton: button.New(StatusFieldsButtonName, fmt.Sprintf("%d fields", len(crd.StatusFields))),
+		inputs: &resourceFormInputs{
+			specFieldsButton:   button.New(SpecFieldsButtonID, fmt.Sprintf("%d fields", len(crd.SpecFields))),
+			statusFieldsButton: button.New(StatusFieldsButtonID, fmt.Sprintf("%d fields", len(crd.StatusFields))),
+		},
 	}
 
-	form.specFieldsButton.Focus()
-
 	return form
+}
+
+func (m *ResourceForm) getInputFocusOrder() []utils.Focusable {
+	return []utils.Focusable{
+		&m.inputs.specFieldsButton,
+		&m.inputs.statusFieldsButton,
+	}
+}
+
+func (m *ResourceForm) rotateFocus(rotateDown bool) {
+	focusOrder := m.getInputFocusOrder()
+	current, currentIdx, exists := lo.FindIndexOf(focusOrder, func(item utils.Focusable) bool {
+		return item.Focused()
+	})
+
+	if !exists {
+		focusOrder[0].Focus()
+		return
+	}
+
+	nextIndex := lo.Clamp(lo.Ternary(rotateDown, currentIdx+1, currentIdx-1), 0, len(focusOrder)-1)
+
+	current.Blur()
+	focusOrder[nextIndex].Focus()
+}
+
+func (m *ResourceForm) handleInputUpdates(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, resourceFormKeys.LineDown):
+			m.rotateFocus(true)
+		case key.Matches(msg, resourceFormKeys.LineUp):
+			m.rotateFocus(false)
+		case key.Matches(msg, resourceFormKeys.Quit):
+			return *m, SendReturn
+		}
+	}
+
+	switch {
+	case m.inputs.specFieldsButton.Focused():
+		m.inputs.specFieldsButton, cmd = m.inputs.specFieldsButton.Update(msg)
+	case m.inputs.statusFieldsButton.Focused():
+		m.inputs.statusFieldsButton, cmd = m.inputs.statusFieldsButton.Update(msg)
+	}
+
+	return *m, cmd
 }
 
 func (m *ResourceForm) getHeaderView() string {
@@ -63,41 +143,17 @@ func (m *ResourceForm) getHeaderView() string {
 }
 
 func (m ResourceForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case button.ButtonSelectMessage:
 		switch msg.GetID() {
-		case SpecFieldsButtonName:
-			fmt.Printf("Pressed spec")
-		case StatusFieldsButtonName:
-			fmt.Printf("Pressed status")
+		case SpecFieldsButtonID:
+			log.Default().Println(msg.GetID())
+		case StatusFieldsButtonID:
+			log.Default().Println(msg.GetID())
 		}
+	}
 
-	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, ResourceFormKeyMap.LineDown):
-			fallthrough
-		case key.Matches(msg, ResourceFormKeyMap.LineUp):
-			if m.statusFieldsButton.Focused() {
-				m.statusFieldsButton.Blur()
-				m.specFieldsButton.Focus()
-			} else {
-				m.specFieldsButton.Blur()
-				m.statusFieldsButton.Focus()
-			}
-		case key.Matches(msg, constants.Keymap.Back):
-			return m, SendReturn
-		}
-	}
-	switch {
-	case m.specFieldsButton.Focused():
-		m.specFieldsButton, cmd = m.specFieldsButton.Update(msg)
-		return m, cmd
-	case m.statusFieldsButton.Focused():
-		m.statusFieldsButton, cmd = m.statusFieldsButton.Update(msg)
-		return m, cmd
-	}
-	return m, cmd
+	return m.handleInputUpdates(msg)
 }
 
 func (m ResourceForm) View() string {
@@ -112,8 +168,8 @@ func (m ResourceForm) View() string {
 	fieldViews := []string{
 		m.crd.Kind,
 		m.crd.Plural,
-		m.specFieldsButton.View(),
-		m.statusFieldsButton.View(),
+		m.inputs.specFieldsButton.View(),
+		m.inputs.statusFieldsButton.View(),
 		fmt.Sprintf("%t", m.crd.IsARNPrimaryKey()),
 	}
 

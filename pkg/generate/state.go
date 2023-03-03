@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
 
 	ackconfig "github.com/aws-controllers-k8s/code-generator/pkg/config"
@@ -28,9 +29,10 @@ type Wizard struct {
 	quitting bool
 	state    sessionState
 
+	help help.Model
+
 	resourceTable views.ResourceTable
 
-	selectedResourceKind string
 	selectedResourceForm views.ResourceForm
 }
 
@@ -63,6 +65,7 @@ func InitialState(model *ackmodel.Model, modelName string) (Wizard, error) {
 		state:         resourcesSummary,
 		resourceTable: *views.NewResourceTable(crds, config),
 		ready:         false,
+		help:          help.New(),
 	}
 
 	return w, nil

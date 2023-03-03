@@ -27,7 +27,7 @@ type Model struct {
 	// For an introduction to styling with Lip Gloss see:
 	// https://github.com/charmbracelet/lipgloss
 	FocusedStyle lipgloss.Style
-	BluredStyle  lipgloss.Style
+	BlurredStyle lipgloss.Style
 	TextStyle    lipgloss.Style
 
 	id    string

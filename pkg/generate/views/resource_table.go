@@ -2,7 +2,9 @@ package views
 
 import (
 	"fmt"
+	"math"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/table"
@@ -15,6 +17,53 @@ import (
 	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/constants"
 	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/styles"
 )
+
+type resourceTableKeyMap struct {
+	Up     key.Binding
+	Down   key.Binding
+	Select key.Binding
+	Ignore key.Binding
+	Help   key.Binding
+	Quit   key.Binding
+}
+
+// ShortHelp returns keybindings to be shown in the mini help view. It's part
+// of the key.Map interface.
+func (k resourceTableKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Ignore, k.Quit}
+}
+
+// FullHelp returns keybindings for the expanded help view. It's part of the
+// key.Map interface.
+func (k resourceTableKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Up, k.Down, k.Select},   // first column
+		{k.Ignore, k.Help, k.Quit}, // second column
+	}
+}
+
+var resourceTableKeys = resourceTableKeyMap{
+	Up: key.NewBinding(
+		key.WithKeys("up", "k"),
+		key.WithHelp("↑/k", "move up"),
+	),
+	Down: key.NewBinding(
+		key.WithKeys("down", "j"),
+		key.WithHelp("↓/j", "move down"),
+	),
+	Select: key.NewBinding(
+		key.WithKeys("enter"),
+		key.WithHelp("enter", "select"),
+	),
+	Help: key.NewBinding(
+		key.WithKeys("?"),
+		key.WithHelp("?", "toggle help"),
+	),
+	Quit: key.NewBinding(
+		key.WithKeys("q", "esc", "ctrl+c"),
+		key.WithHelp("q", "quit"),
+	),
+}
 
 type ResourceTable struct {
 	crds   []*ackmodel.CRD
@@ -30,17 +79,21 @@ func (m *ResourceTable) initialiseResourcesTable() error {
 
 	// Subtract all offsets for unknown reasons
 	// TODO: Figure out why offests are necessary
-	width := constants.UsableViewSize.Width - 3
+	width := constants.UsableViewSize.Width
 	height := constants.UsableViewSize.Height - headerHeight
 
 	columns := []table.Column{
-		{Title: "Kind", Width: width / 3},
-		{Title: "# Spec Fields", Width: width / 3},
-		{Title: "# Status Fields", Width: width / 3},
+		{Title: "Ignored", Width: 8},
+		{Title: "Kind", Width: (int)(math.Floor((float64)(width-10)/3)) - 2},
+		{Title: "# Spec Fields", Width: (int)(math.Floor((float64)(width-10)/3)) - 2},
+		{Title: "# Status Fields", Width: (int)(math.Floor((float64)(width-10)/3)) - 2},
 	}
 
 	rows := lo.Map(m.crds, func(crd *ackmodel.CRD, index int) table.Row {
+		ignored := lo.Contains(m.config.Ignore.ResourceNames, crd.Kind)
+
 		return table.Row{
+			lo.Ternary(ignored, "✓", ""),
 			crd.Names.Camel,
 			fmt.Sprintf("%d", len(crd.SpecFields)),
 			fmt.Sprintf("%d", len(crd.StatusFields)),
@@ -52,7 +105,7 @@ func (m *ResourceTable) initialiseResourcesTable() error {
 		table.WithRows(rows),
 		table.WithFocused(true),
 		table.WithHeight(height),
-		table.WithWidth(width),
+		table.WithWidth(width), // Subtract because of cell padding
 	)
 	t.SetStyles(styles.DefaultTableStyle)
 
@@ -63,6 +116,10 @@ func (m *ResourceTable) initialiseResourcesTable() error {
 
 func (m *ResourceTable) getHeaderView() string {
 	return styles.HeaderStyle.Render("Resources")
+}
+
+func (m ResourceTable) Keymap() help.KeyMap {
+	return resourceTableKeys
 }
 
 func NewResourceTable(crds []*ackmodel.CRD, config *ackconfig.Config) *ResourceTable {
@@ -77,7 +134,7 @@ func NewResourceTable(crds []*ackmodel.CRD, config *ackconfig.Config) *ResourceT
 
 func (m *ResourceTable) SelectCurrentResource() tea.Msg {
 	selectedItem := m.table.SelectedRow()
-	selectedKind := selectedItem[0]
+	selectedKind := selectedItem[1]
 
 	return SelectResource{ResourceKind: selectedKind}
 }
@@ -94,9 +151,9 @@ func (m ResourceTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.initialiseResourcesTable()
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, constants.Keymap.Quit):
+		case key.Matches(msg, resourceTableKeys.Quit):
 			return m, tea.Quit
-		case key.Matches(msg, constants.Keymap.Enter):
+		case key.Matches(msg, resourceTableKeys.Select):
 			return m, m.SelectCurrentResource
 		default:
 			m.table, cmd = m.table.Update(msg)

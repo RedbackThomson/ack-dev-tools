@@ -2,7 +2,6 @@ package views
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -71,6 +70,10 @@ type ResourceForm struct {
 	inputs *resourceFormInputs
 }
 
+func (m ResourceForm) CRD() *ackmodel.CRD {
+	return m.crd
+}
+
 func (m ResourceForm) Keymap() help.KeyMap {
 	return resourceFormKeys
 }
@@ -124,7 +127,9 @@ func (m *ResourceForm) handleInputUpdates(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, resourceFormKeys.LineUp):
 			m.rotateFocus(false)
 		case key.Matches(msg, resourceFormKeys.Quit):
-			return *m, SendReturn
+			return *m, (func() tea.Msg {
+				return ReturnMessage{}
+			})
 		}
 	}
 
@@ -147,9 +152,13 @@ func (m ResourceForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case button.ButtonSelectMessage:
 		switch msg.GetID() {
 		case SpecFieldsButtonID:
-			log.Default().Println(msg.GetID())
+			return m, (func() tea.Msg {
+				return OpenSpecFieldsMessage{}
+			})
 		case StatusFieldsButtonID:
-			log.Default().Println(msg.GetID())
+			return m, (func() tea.Msg {
+				return OpenStatusFieldsMessage{}
+			})
 		}
 	}
 
@@ -193,3 +202,7 @@ type ReturnMessage struct{}
 func SendReturn() tea.Msg {
 	return ReturnMessage{}
 }
+
+type OpenSpecFieldsMessage struct{}
+
+type OpenStatusFieldsMessage struct{}

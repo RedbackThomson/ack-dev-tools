@@ -34,6 +34,7 @@ type Wizard struct {
 	resourceTable views.ResourceTable
 
 	selectedResourceForm views.ResourceForm
+	fieldTable           views.FieldTable
 }
 
 func (w Wizard) Config() *ackconfig.Config {

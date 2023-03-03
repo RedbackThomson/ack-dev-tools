@@ -48,7 +48,7 @@ var (
 )
 
 var (
-	DefaultTableStyle table.Styles = table.DefaultStyles()
+	DefaultTableStyle table.Styles = table.Styles{}
 )
 
 func init() {

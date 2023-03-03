@@ -77,16 +77,14 @@ type ResourceTable struct {
 func (m *ResourceTable) initialiseResourcesTable() error {
 	headerHeight := lipgloss.Height(m.getHeaderView())
 
-	// Subtract all offsets for unknown reasons
-	// TODO: Figure out why offests are necessary
 	width := constants.UsableViewSize.Width
 	height := constants.UsableViewSize.Height - headerHeight
 
 	columns := []table.Column{
-		{Title: "Ignored", Width: 8},
-		{Title: "Kind", Width: (int)(math.Floor((float64)(width-10)/3)) - 2},
-		{Title: "# Spec Fields", Width: (int)(math.Floor((float64)(width-10)/3)) - 2},
-		{Title: "# Status Fields", Width: (int)(math.Floor((float64)(width-10)/3)) - 2},
+		{Title: "Ignored", Width: 10},
+		{Title: "Kind", Width: (int)(math.Round((float64)(width-10) / 3))},
+		{Title: "# Spec Fields", Width: (int)(math.Round((float64)(width-10) / 3))},
+		{Title: "# Status Fields", Width: (int)(math.Round((float64)(width-10) / 3))},
 	}
 
 	rows := lo.Map(m.crds, func(crd *ackmodel.CRD, index int) table.Row {

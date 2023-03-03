@@ -37,9 +37,11 @@ func (w Wizard) currentView() views.View {
 	case resourceDetails:
 		return w.selectedResourceForm
 	case resourcesSummary:
-		fallthrough
-	default:
 		return w.resourceTable
+	case fieldsView:
+		return w.fieldTable
+	default:
+		panic(fmt.Errorf(ErrNoCurrentViewDefined, w.state))
 	}
 }
 
@@ -52,13 +54,19 @@ func (w *Wizard) replaceCurrentView(r tea.Model) {
 		}
 		w.selectedResourceForm = selectedResourceForm
 	case resourcesSummary:
-		fallthrough
-	default:
 		resourceTable, ok := r.(views.ResourceTable)
 		if !ok {
 			panic(fmt.Errorf(ErrAssertUpdate, "ResourceTable"))
 		}
 		w.resourceTable = resourceTable
+	case fieldsView:
+		fieldTable, ok := r.(views.FieldTable)
+		if !ok {
+			panic(fmt.Errorf(ErrAssertUpdate, "FieldTable"))
+		}
+		w.fieldTable = fieldTable
+	default:
+		panic(fmt.Errorf(ErrNoReplaceViewDefined, w.state))
 	}
 }
 
@@ -78,12 +86,25 @@ func (w Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case views.ReturnMessage:
-		w.state = resourcesSummary
+		switch w.state {
+		case resourceDetails:
+			w.state = resourcesSummary
+		case fieldsView:
+			w.state = resourceDetails
+		}
 		return w, nil
 	case views.SelectResource:
 		crd := w.getCRDByKind(msg.ResourceKind)
 		w.selectedResourceForm = *views.NewResourceForm(crd, w.upsertResourceConfig(msg.ResourceKind))
 		w.state = resourceDetails
+	case views.OpenSpecFieldsMessage:
+		crd := w.selectedResourceForm.CRD()
+		w.fieldTable = *views.NewFieldTable(views.FieldTableTypeSpec, crd.SpecFields, w.upsertResourceConfig(crd.Kind))
+		w.state = fieldsView
+	case views.OpenStatusFieldsMessage:
+		crd := w.selectedResourceForm.CRD()
+		w.fieldTable = *views.NewFieldTable(views.FieldTableTypeStatus, crd.StatusFields, w.upsertResourceConfig(crd.Kind))
+		w.state = fieldsView
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, key.NewBinding(key.WithKeys("q", "ctrl+c"))):

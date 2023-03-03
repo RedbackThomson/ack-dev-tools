@@ -45,19 +45,7 @@ func (w Wizard) Config() *ackconfig.Config {
 	return w.config
 }
 
-func InitialState(model *ackmodel.Model, service, modelName, apiVersion string) (Wizard, error) {
-	config := &ackconfig.Config{
-		ModelName: modelName,
-		Resources: map[string]ackconfig.ResourceConfig{},
-		Ignore: ackconfig.IgnoreSpec{
-			ResourceNames: []string{},
-		},
-		Operations:                     map[string]ackconfig.OperationConfig{},
-		PrefixConfig:                   ackconfig.PrefixConfig{},
-		IncludeACKMetadata:             true,
-		SetManyOutputNotFoundErrReturn: "",
-	}
-
+func InitialState(config *ackconfig.Config, model *ackmodel.Model, service, modelName, apiVersion string) (Wizard, error) {
 	crds, err := model.GetCRDs()
 	if err != nil {
 		return Wizard{}, err

@@ -39,11 +39,11 @@ var (
 	defaultCacheDir string
 	sdkDir          string
 
-	optGenAllRepos     bool
-	optCacheDir        string
-	optOutputDir       string
-	optAWSSDKGoVersion string
-	optIgnoreServices  string
+	optGenAllRepos         bool
+	optCacheDir            string
+	optGeneratorConfigPath string
+	optAWSSDKGoVersion     string
+	optIgnoreServices      string
 )
 
 const (
@@ -62,36 +62,36 @@ func init() {
 	listCmd.AddCommand(listRepositoriesCmd)
 	listCmd.AddCommand(getConfigCmd)
 
-	generateCmd.PersistentFlags().BoolVarP(&optGenAllRepos, "all", "a", false, "all repositories")
-	generateCmd.PersistentFlags().StringVar(
+	developCmd.PersistentFlags().BoolVarP(&optGenAllRepos, "all", "a", false, "all repositories")
+	developCmd.PersistentFlags().StringVar(
 		&optCacheDir, "cache-dir", defaultCacheDir, "Path to directory to store cached files (including clone'd aws-sdk-go repo)",
 	)
-	generateCmd.PersistentFlags().StringVar(
-		&optOutputDir, "output-dir", "", "Path to directory to store the generated files",
+	developCmd.PersistentFlags().StringVar(
+		&optGeneratorConfigPath, "generator-config-path", "", "Path to file containing instructions for code generation to use",
 	)
-	generateCmd.PersistentFlags().StringVar(
+	developCmd.PersistentFlags().StringVar(
 		&optAWSSDKGoVersion, "aws-sdk-go-version", "", "Version of github.com/aws/aws-sdk-go used to generate apis and controllers files",
 	)
-	generateCmd.PersistentFlags().StringVar(
+	developCmd.PersistentFlags().StringVar(
 		&optIgnoreServices, "ignore", "", "List of service model names to ignore",
 	)
 }
 
-var generateCmd = &cobra.Command{
-	Use:     "generate",
-	Aliases: []string{"gen"},
+var developCmd = &cobra.Command{
+	Use:     "develop",
+	Aliases: []string{"dev"},
 	Args:    cobra.MaximumNArgs(1),
-	Short:   "Generates a new controller",
-	RunE:    generateControllers,
+	Short:   "Opens the developer CLI for a controller",
+	RunE:    developController,
 }
 
-func generateControllers(cmd *cobra.Command, args []string) (err error) {
+func developController(cmd *cobra.Command, args []string) (err error) {
 	if !optGenAllRepos && len(args) == 0 {
 		return errors.New("requires the name of a single service")
 	}
 
-	if optOutputDir == "" {
-		return errors.New("output directory flag is required")
+	if optGeneratorConfigPath == "" {
+		return errors.New("flag --generator-config-path is required")
 	}
 
 	ctx, cancel := acksdk.ContextWithSigterm(context.Background())
@@ -134,8 +134,7 @@ func generateSingleController(ctx context.Context, svcAlias string) error {
 		modelName = svcAlias
 	}
 
-	controllerPath := fmt.Sprintf("%s/%s-controller", optOutputDir, svcAlias)
-	sdkDir, err := acksdk.EnsureRepo(ctx, optCacheDir, false, optAWSSDKGoVersion, controllerPath)
+	sdkDir, err := acksdk.EnsureRepo(ctx, optCacheDir, false, optAWSSDKGoVersion, filepath.Dir(optGeneratorConfigPath))
 	if err != nil {
 		return err
 	}
@@ -162,7 +161,12 @@ func generateSingleController(ctx context.Context, svcAlias string) error {
 		return err
 	}
 
-	initialState, err := ackwizard.InitialState(m, svcAlias, modelName, DefaultAPIVersion)
+	cfg, err = ackconfig.New(optGeneratorConfigPath, cfg)
+	if err != nil {
+		return err
+	}
+
+	initialState, err := ackwizard.InitialState(&cfg, m, svcAlias, modelName, DefaultAPIVersion)
 	if err != nil {
 		return err
 	}
@@ -193,38 +197,13 @@ func generateSingleController(ctx context.Context, svcAlias string) error {
 	return nil
 }
 
-func createGenerator(ctx context.Context, model *ackmodel.Model, modelName string) (*ackconfig.Config, error) {
-	cfg := &ackconfig.Config{
-		ModelName: modelName,
-		Resources: map[string]ackconfig.ResourceConfig{},
-		Ignore: ackconfig.IgnoreSpec{
-			ResourceNames: []string{},
-		},
-		Operations:                     map[string]ackconfig.OperationConfig{},
-		PrefixConfig:                   ackconfig.PrefixConfig{},
-		IncludeACKMetadata:             false,
-		SetManyOutputNotFoundErrReturn: "",
-	}
-
-	crds, err := model.GetCRDs()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, crd := range crds {
-		cfg.Ignore.ResourceNames = append(cfg.Ignore.ResourceNames, crd.Names.Original)
-	}
-
-	return cfg, nil
-}
-
 func writeGenerator(config *ackconfig.Config, svcAlias string) error {
 	y, err := yaml.Marshal(*config)
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(fmt.Sprintf("%s/%s-generator.yaml", optOutputDir, svcAlias), y, 0644)
+	return os.WriteFile(optGeneratorConfigPath, y, 0644)
 }
 
 func getSDKModelNames() ([]string, error) {

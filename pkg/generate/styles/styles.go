@@ -56,9 +56,12 @@ func init() {
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		BorderBottom(true).
+		Padding(0, 1).
 		Bold(false)
 	DefaultTableStyle.Selected = DefaultTableStyle.Selected.
 		Foreground(lipgloss.Color("229")).
 		Background(lipgloss.Color("57")).
 		Bold(false)
+	DefaultTableStyle.Cell = DefaultTableStyle.Cell.
+		Padding(0, 1)
 }

@@ -71,7 +71,7 @@ func (w *Wizard) replaceCurrentView(r tea.Model) {
 }
 
 func (w Wizard) recalculateScreenSizes(view views.View, windowSize tea.WindowSizeMsg) {
-	headerHeight := lipgloss.Height(views.HeaderView(w.config.ModelName))
+	headerHeight := lipgloss.Height(views.HeaderView(w.service))
 	footerHeight := lipgloss.Height(views.FooterView(w.help, view.Keymap()))
 
 	constants.WindowSize = windowSize
@@ -133,7 +133,7 @@ func (w Wizard) View() string {
 		return ""
 	}
 
-	header := views.HeaderView(fmt.Sprintf("%s-controller", w.config.ModelName))
+	header := views.HeaderView(fmt.Sprintf("%s-controller", w.service))
 
 	view := w.currentView()
 

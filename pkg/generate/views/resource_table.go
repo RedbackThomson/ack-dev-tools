@@ -3,6 +3,7 @@ package views
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -18,98 +19,57 @@ import (
 	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/styles"
 )
 
-type resourceTableKeyMap struct {
-	Up     key.Binding
-	Down   key.Binding
-	Select key.Binding
-	Ignore key.Binding
-	Help   key.Binding
-	Quit   key.Binding
-}
-
-// ShortHelp returns keybindings to be shown in the mini help view. It's part
-// of the key.Map interface.
-func (k resourceTableKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Ignore, k.Quit}
-}
-
-// FullHelp returns keybindings for the expanded help view. It's part of the
-// key.Map interface.
-func (k resourceTableKeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{k.Up, k.Down, k.Select},   // first column
-		{k.Ignore, k.Help, k.Quit}, // second column
-	}
-}
-
-var resourceTableKeys = resourceTableKeyMap{
-	Up: key.NewBinding(
-		key.WithKeys("up", "k"),
-		key.WithHelp("↑/k", "move up"),
-	),
-	Down: key.NewBinding(
-		key.WithKeys("down", "j"),
-		key.WithHelp("↓/j", "move down"),
-	),
-	Select: key.NewBinding(
-		key.WithKeys("enter"),
-		key.WithHelp("enter", "select"),
-	),
-	Help: key.NewBinding(
-		key.WithKeys("?"),
-		key.WithHelp("?", "toggle help"),
-	),
-	Quit: key.NewBinding(
-		key.WithKeys("q", "esc", "ctrl+c"),
-		key.WithHelp("q", "quit"),
-	),
-}
-
 type ResourceTable struct {
-	crds   []*ackmodel.CRD
-	config *ackconfig.Config
+	service string
+	crds    []*ackmodel.CRD
+	config  *ackconfig.Config
 
 	loaded bool
 
 	table table.Model
 }
 
-func (m *ResourceTable) initialiseResourcesTable() error {
+func (m *ResourceTable) initialiseResourcesTable() {
 	headerHeight := lipgloss.Height(m.getHeaderView())
 
-	width := constants.UsableViewSize.Width
+	style := styles.DefaultTableStyle
+
+	// subtract padding for every header cell
+	width := constants.UsableViewSize.Width - style.Header.GetHorizontalPadding()*4
 	height := constants.UsableViewSize.Height - headerHeight
 
 	columns := []table.Column{
 		{Title: "Ignored", Width: 10},
 		{Title: "Kind", Width: (int)(math.Round((float64)(width-10) / 3))},
-		{Title: "# Spec Fields", Width: (int)(math.Round((float64)(width-10) / 3))},
+		{Title: "API Group", Width: (int)(math.Round((float64)(width-10) / 3))},
 		{Title: "# Status Fields", Width: (int)(math.Round((float64)(width-10) / 3))},
 	}
 
-	rows := lo.Map(m.crds, func(crd *ackmodel.CRD, index int) table.Row {
-		ignored := lo.Contains(m.config.Ignore.ResourceNames, crd.Kind)
-
-		return table.Row{
-			lo.Ternary(ignored, "✓", ""),
-			crd.Names.Camel,
-			fmt.Sprintf("%d", len(crd.SpecFields)),
-			fmt.Sprintf("%d", len(crd.StatusFields)),
-		}
-	})
-
 	t := table.New(
 		table.WithColumns(columns),
-		table.WithRows(rows),
 		table.WithFocused(true),
 		table.WithHeight(height),
 		table.WithWidth(width), // Subtract because of cell padding
 	)
-	t.SetStyles(styles.DefaultTableStyle)
+	t.SetStyles(style)
 
 	m.table = t
 
-	return nil
+	m.loadTableRows()
+}
+
+func (m *ResourceTable) loadTableRows() {
+	rows := lo.Map(m.crds, func(crd *ackmodel.CRD, index int) table.Row {
+		ignored := lo.Contains(m.config.Ignore.ResourceNames, crd.Kind)
+
+		return table.Row{
+			lo.Ternary(ignored, " ✓", ""),
+			crd.Names.Camel,
+			strings.ToLower(fmt.Sprintf("%s.%s.services.k8s.aws", crd.Kind, m.service)),
+			fmt.Sprintf("%d", len(crd.StatusFields)),
+		}
+	})
+	m.table.SetRows(rows)
 }
 
 func (m *ResourceTable) getHeaderView() string {
@@ -120,21 +80,36 @@ func (m ResourceTable) Keymap() help.KeyMap {
 	return resourceTableKeys
 }
 
-func NewResourceTable(crds []*ackmodel.CRD, config *ackconfig.Config) *ResourceTable {
+func NewResourceTable(service string, crds []*ackmodel.CRD, config *ackconfig.Config) *ResourceTable {
 	form := &ResourceTable{
-		crds:   crds,
-		config: config,
-		loaded: false,
+		service: service,
+		crds:    crds,
+		config:  config,
+		loaded:  false,
 	}
 
 	return form
 }
 
-func (m *ResourceTable) SelectCurrentResource() tea.Msg {
+func (m *ResourceTable) selectCurrentResource() tea.Msg {
 	selectedItem := m.table.SelectedRow()
 	selectedKind := selectedItem[1]
 
 	return SelectResource{ResourceKind: selectedKind}
+}
+
+func (m *ResourceTable) toggleIgnoreCurrentResource() {
+	selectedItem := m.table.SelectedRow()
+	selectedKind := selectedItem[1]
+
+	isIgnored := lo.Contains(m.config.Ignore.ResourceNames, selectedKind)
+	if isIgnored {
+		m.config.Ignore.ResourceNames = lo.Filter(m.config.Ignore.ResourceNames, func(name string, index int) bool {
+			return name != selectedKind
+		})
+	} else {
+		m.config.Ignore.ResourceNames = append(m.config.Ignore.ResourceNames, selectedKind)
+	}
 }
 
 func (m ResourceTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -149,10 +124,14 @@ func (m ResourceTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.initialiseResourcesTable()
 	case tea.KeyMsg:
 		switch {
+		case key.Matches(msg, resourceTableKeys.Select):
+			return m, m.selectCurrentResource
+		case key.Matches(msg, resourceTableKeys.Ignore):
+			m.toggleIgnoreCurrentResource()
+			m.loadTableRows()
+			return m, nil
 		case key.Matches(msg, resourceTableKeys.Quit):
 			return m, tea.Quit
-		case key.Matches(msg, resourceTableKeys.Select):
-			return m, m.SelectCurrentResource
 		default:
 			m.table, cmd = m.table.Update(msg)
 		}
@@ -195,4 +174,55 @@ func (i ResourceListItem) Description() string {
 
 type SelectResource struct {
 	ResourceKind string
+}
+
+type resourceTableKeyMap struct {
+	Up     key.Binding
+	Down   key.Binding
+	Select key.Binding
+	Ignore key.Binding
+	Help   key.Binding
+	Quit   key.Binding
+}
+
+// ShortHelp returns keybindings to be shown in the mini help view. It's part
+// of the key.Map interface.
+func (k resourceTableKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Ignore, k.Select, k.Help, k.Quit}
+}
+
+// FullHelp returns keybindings for the expanded help view. It's part of the
+// key.Map interface.
+func (k resourceTableKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Ignore, k.Select},           // first column
+		{k.Up, k.Down, k.Help, k.Quit}, // second column
+	}
+}
+
+var resourceTableKeys = resourceTableKeyMap{
+	Up: key.NewBinding(
+		key.WithKeys("up", "k"),
+		key.WithHelp("↑/k", "move up"),
+	),
+	Down: key.NewBinding(
+		key.WithKeys("down", "j"),
+		key.WithHelp("↓/j", "move down"),
+	),
+	Select: key.NewBinding(
+		key.WithKeys("enter"),
+		key.WithHelp("enter", "select"),
+	),
+	Ignore: key.NewBinding(
+		key.WithKeys("i"),
+		key.WithHelp("i", "toggle ignore"),
+	),
+	Help: key.NewBinding(
+		key.WithKeys("?"),
+		key.WithHelp("?", "toggle help"),
+	),
+	Quit: key.NewBinding(
+		key.WithKeys("q", "esc", "ctrl+c"),
+		key.WithHelp("q/esc/ctrl+c", "quit"),
+	),
 }

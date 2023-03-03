@@ -162,7 +162,7 @@ func generateSingleController(ctx context.Context, svcAlias string) error {
 		return err
 	}
 
-	initialState, err := ackwizard.InitialState(m, modelName)
+	initialState, err := ackwizard.InitialState(m, svcAlias, modelName, DefaultAPIVersion)
 	if err != nil {
 		return err
 	}

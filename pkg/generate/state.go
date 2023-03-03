@@ -21,9 +21,10 @@ const (
 )
 
 type Wizard struct {
-	config *ackconfig.Config
-	model  *ackmodel.Model
-	crds   []*ackmodel.CRD
+	config  *ackconfig.Config
+	service string
+	model   *ackmodel.Model
+	crds    []*ackmodel.CRD
 
 	ready    bool
 	quitting bool
@@ -41,7 +42,7 @@ func (w Wizard) Config() *ackconfig.Config {
 	return w.config
 }
 
-func InitialState(model *ackmodel.Model, modelName string) (Wizard, error) {
+func InitialState(model *ackmodel.Model, service, modelName, apiVersion string) (Wizard, error) {
 	config := &ackconfig.Config{
 		ModelName: modelName,
 		Resources: map[string]ackconfig.ResourceConfig{},
@@ -60,11 +61,12 @@ func InitialState(model *ackmodel.Model, modelName string) (Wizard, error) {
 	}
 
 	w := Wizard{
+		service:       service,
 		config:        config,
 		model:         model,
 		crds:          crds,
 		state:         resourcesSummary,
-		resourceTable: *views.NewResourceTable(crds, config),
+		resourceTable: *views.NewResourceTable(service, crds, config),
 		ready:         false,
 		help:          help.New(),
 	}

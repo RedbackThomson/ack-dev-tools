@@ -22,42 +22,6 @@ var (
 	StatusFieldsButtonID string = "status"
 )
 
-type resourceFormKeyMap struct {
-	LineUp   key.Binding
-	LineDown key.Binding
-	Quit     key.Binding
-}
-
-// ShortHelp returns keybindings to be shown in the mini help view. It's part
-// of the key.Map interface.
-func (k resourceFormKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Quit}
-}
-
-// FullHelp returns keybindings for the expanded help view. It's part of the
-// key.Map interface.
-func (k resourceFormKeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{k.LineUp, k.LineDown}, // first column
-		{k.Quit},               // second column
-	}
-}
-
-var resourceFormKeys = resourceFormKeyMap{
-	LineUp: key.NewBinding(
-		key.WithKeys("up", "k"),
-		key.WithHelp("↑/k", "up"),
-	),
-	LineDown: key.NewBinding(
-		key.WithKeys("down", "j"),
-		key.WithHelp("↓/j", "down"),
-	),
-	Quit: key.NewBinding(
-		key.WithKeys("esc"),
-		key.WithHelp("esc", "go back"),
-	),
-}
-
 type resourceFormInputs struct {
 	specFieldsButton   button.Model
 	statusFieldsButton button.Model
@@ -206,3 +170,44 @@ func SendReturn() tea.Msg {
 type OpenSpecFieldsMessage struct{}
 
 type OpenStatusFieldsMessage struct{}
+
+type resourceFormKeyMap struct {
+	LineUp   key.Binding
+	LineDown key.Binding
+	Select   key.Binding
+	Quit     key.Binding
+}
+
+// ShortHelp returns keybindings to be shown in the mini help view. It's part
+// of the key.Map interface.
+func (k resourceFormKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Select, k.Quit}
+}
+
+// FullHelp returns keybindings for the expanded help view. It's part of the
+// key.Map interface.
+func (k resourceFormKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Select}, // first column
+		{k.Quit},   // second column
+	}
+}
+
+var resourceFormKeys = resourceFormKeyMap{
+	LineUp: key.NewBinding(
+		key.WithKeys("up", "k"),
+		key.WithHelp("↑/k", "up"),
+	),
+	LineDown: key.NewBinding(
+		key.WithKeys("down", "j"),
+		key.WithHelp("↓/j", "down"),
+	),
+	Select: key.NewBinding(
+		key.WithKeys("enter"),
+		key.WithHelp("enter", "select/toggle"),
+	),
+	Quit: key.NewBinding(
+		key.WithKeys("esc"),
+		key.WithHelp("esc", "go back"),
+	),
+}

@@ -34,8 +34,7 @@ var (
 			Padding(0, 1).
 			Margin(1, 0, 1, 1)
 
-	// HeaderStyle is the style used for the current view's header
-	HeaderStyle = lipgloss.NewStyle().
+	BreadcrumbStyle = lipgloss.NewStyle().
 			Bold(true).
 			Background(lipgloss.Color("#7D56F4")).
 			Padding(0, 1).

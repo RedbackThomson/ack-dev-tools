@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/samber/lo"
 
 	ackconfig "github.com/aws-controllers-k8s/code-generator/pkg/config"
@@ -30,19 +29,16 @@ type ResourceTable struct {
 }
 
 func (m *ResourceTable) initialiseResourcesTable() {
-	headerHeight := lipgloss.Height(m.getHeaderView())
-
 	style := styles.DefaultTableStyle
 
 	// subtract padding for every header cell
 	width := constants.UsableViewSize.Width - style.Header.GetHorizontalPadding()*4
-	height := constants.UsableViewSize.Height - headerHeight
+	height := constants.UsableViewSize.Height
 
 	columns := []table.Column{
-		{Title: "Ignored", Width: 10},
-		{Title: "Kind", Width: (int)(math.Round((float64)(width-10) / 3))},
-		{Title: "API Group", Width: (int)(math.Round((float64)(width-10) / 3))},
-		{Title: "# Status Fields", Width: (int)(math.Round((float64)(width-10) / 3))},
+		{Title: "Ignored", Width: 7},
+		{Title: "Kind", Width: (int)(math.Round((float64)(width-7) / 2))},
+		{Title: "API Group", Width: (int)(math.Round((float64)(width-7) / 2))},
 	}
 
 	t := table.New(
@@ -66,14 +62,9 @@ func (m *ResourceTable) loadTableRows() {
 			lo.Ternary(ignored, " ✓", ""),
 			crd.Names.Camel,
 			strings.ToLower(fmt.Sprintf("%s.%s.services.k8s.aws", crd.Kind, m.service)),
-			fmt.Sprintf("%d", len(crd.StatusFields)),
 		}
 	})
 	m.table.SetRows(rows)
-}
-
-func (m *ResourceTable) getHeaderView() string {
-	return styles.HeaderStyle.Render("Resources")
 }
 
 func (m ResourceTable) Keymap() help.KeyMap {
@@ -140,7 +131,7 @@ func (m ResourceTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ResourceTable) View() string {
-	return lipgloss.JoinVertical(lipgloss.Top, m.getHeaderView(), m.table.View())
+	return m.table.View()
 }
 
 func (m ResourceTable) Init() tea.Cmd {

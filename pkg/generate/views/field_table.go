@@ -1,13 +1,10 @@
 package views
 
 import (
-	"fmt"
-
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/samber/lo"
 
 	ackconfig "github.com/aws-controllers-k8s/code-generator/pkg/config"
@@ -34,10 +31,8 @@ type FieldTable struct {
 }
 
 func (m *FieldTable) initialiseFieldsTable() error {
-	headerHeight := lipgloss.Height(m.getHeaderView())
-
 	width := constants.UsableViewSize.Width
-	height := constants.UsableViewSize.Height - headerHeight
+	height := constants.UsableViewSize.Height
 
 	columns := []table.Column{
 		{Title: "Name", Width: width},
@@ -61,10 +56,6 @@ func (m *FieldTable) initialiseFieldsTable() error {
 	m.table = t
 
 	return nil
-}
-
-func (m *FieldTable) getHeaderView() string {
-	return styles.HeaderStyle.Render(fmt.Sprintf("%s Fields", m.tableType))
 }
 
 func (m FieldTable) Keymap() help.KeyMap {
@@ -108,7 +99,7 @@ func (m FieldTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m FieldTable) View() string {
-	return lipgloss.JoinVertical(lipgloss.Top, m.getHeaderView(), m.table.View())
+	return m.table.View()
 }
 
 func (m FieldTable) Init() tea.Cmd {

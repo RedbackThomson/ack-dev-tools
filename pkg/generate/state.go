@@ -6,6 +6,7 @@ import (
 
 	ackconfig "github.com/aws-controllers-k8s/code-generator/pkg/config"
 	ackmodel "github.com/aws-controllers-k8s/code-generator/pkg/model"
+	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/utils"
 	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/views"
 )
 
@@ -29,6 +30,8 @@ type Wizard struct {
 	ready    bool
 	quitting bool
 	state    sessionState
+
+	breadcrumbs *utils.Breadcrumbs
 
 	help help.Model
 
@@ -69,6 +72,7 @@ func InitialState(model *ackmodel.Model, service, modelName, apiVersion string) 
 		resourceTable: *views.NewResourceTable(service, crds, config),
 		ready:         false,
 		help:          help.New(),
+		breadcrumbs:   utils.NewBreadcrumbs(),
 	}
 
 	return w, nil

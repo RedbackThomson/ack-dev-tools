@@ -42,24 +42,24 @@ type Model struct {
 }
 
 // New creates a new model with default settings.
-func New(id string, text string) Model {
+func New(id string, label string) Model {
 	return Model{
 		SelectionPrefix: "",
 		id:              id,
-		label:           text,
+		label:           label,
 		focus:           false,
 		KeyMap:          DefaultKeyMap,
 		FocusedStyle:    lipgloss.NewStyle().Background(lipgloss.Color("#777777")),
 	}
 }
 
-// SetText sets the label of the button.
-func (m *Model) SetText(s string) {
+// SetLabel sets the label of the button.
+func (m *Model) SetLabel(s string) {
 	m.label = s
 }
 
-// Text returns the text string of the button.
-func (m Model) Text() string {
+// Label returns the label string of the button.
+func (m Model) Label() string {
 	return string(m.label)
 }
 
@@ -99,9 +99,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 // View renders the textinput in its current state.
 func (m Model) View() string {
-	styleText := m.TextStyle.Inline(true).Render
+	styleLabel := m.TextStyle.Inline(true).Render
 
-	v := styleText(m.label)
+	v := styleLabel(m.label)
 
 	if m.focus {
 		return m.FocusedStyle.Render(m.SelectionPrefix + v)

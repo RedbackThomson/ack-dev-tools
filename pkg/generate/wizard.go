@@ -16,13 +16,12 @@ import (
 )
 
 func (w *Wizard) upsertResourceConfig(kind string) *ackconfig.ResourceConfig {
-	config, ok := w.config.Resources[kind]
-	if !ok {
+	_, exists := w.config.Resources[kind]
+	if !exists {
 		w.config.Resources[kind] = ackconfig.ResourceConfig{}
-		config, _ = w.config.Resources[kind]
 	}
 
-	return &config
+	return lo.ToPtr(w.config.Resources[kind])
 }
 
 func (w *Wizard) getCRDByKind(kind string) *ackmodel.CRD {
@@ -71,7 +70,7 @@ func (w *Wizard) replaceCurrentView(r tea.Model) {
 }
 
 func (w Wizard) recalculateScreenSizes(view views.View, windowSize tea.WindowSizeMsg) {
-	headerHeight := lipgloss.Height(views.HeaderView(w.service))
+	headerHeight := lipgloss.Height(views.HeaderView(w.service, w.breadcrumbs))
 	footerHeight := lipgloss.Height(views.FooterView(w.help, view.Keymap()))
 
 	constants.WindowSize = windowSize
@@ -92,19 +91,25 @@ func (w Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case fieldsView:
 			w.state = resourceDetails
 		}
+		w.breadcrumbs.Pop()
 		return w, nil
 	case views.SelectResource:
 		crd := w.getCRDByKind(msg.ResourceKind)
 		w.selectedResourceForm = *views.NewResourceForm(crd, w.upsertResourceConfig(msg.ResourceKind))
+		w.breadcrumbs.Push(msg.ResourceKind)
 		w.state = resourceDetails
 	case views.OpenSpecFieldsMessage:
 		crd := w.selectedResourceForm.CRD()
 		w.fieldTable = *views.NewFieldTable(views.FieldTableTypeSpec, crd.SpecFields, w.upsertResourceConfig(crd.Kind))
+		w.breadcrumbs.Push((string)(views.FieldTableTypeSpec))
 		w.state = fieldsView
 	case views.OpenStatusFieldsMessage:
 		crd := w.selectedResourceForm.CRD()
 		w.fieldTable = *views.NewFieldTable(views.FieldTableTypeStatus, crd.StatusFields, w.upsertResourceConfig(crd.Kind))
+		w.breadcrumbs.Push((string)(views.FieldTableTypeStatus))
 		w.state = fieldsView
+	case views.UpdateResourceConfig:
+		w.config.Resources[msg.Kind] = *msg.Config
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, key.NewBinding(key.WithKeys("q", "ctrl+c"))):
@@ -133,7 +138,7 @@ func (w Wizard) View() string {
 		return ""
 	}
 
-	header := views.HeaderView(fmt.Sprintf("%s-controller", w.service))
+	header := views.HeaderView(w.service, w.breadcrumbs)
 
 	view := w.currentView()
 

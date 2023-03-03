@@ -13,18 +13,19 @@ import (
 	ackconfig "github.com/aws-controllers-k8s/code-generator/pkg/config"
 	ackmodel "github.com/aws-controllers-k8s/code-generator/pkg/model"
 	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/components/button"
-	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/styles"
 	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/utils"
 )
 
 var (
-	SpecFieldsButtonID   string = "spec"
-	StatusFieldsButtonID string = "status"
+	SpecFieldsButtonID    string = "spec"
+	StatusFieldsButtonID  string = "status"
+	ARNPrimaryKeyButtonID string = "arn-primary-key"
 )
 
 type resourceFormInputs struct {
-	specFieldsButton   button.Model
-	statusFieldsButton button.Model
+	specFieldsButton    button.Model
+	statusFieldsButton  button.Model
+	arnPrimaryKeyButton button.Model
 }
 
 type ResourceForm struct {
@@ -48,8 +49,9 @@ func NewResourceForm(crd *ackmodel.CRD, config *ackconfig.ResourceConfig) *Resou
 		config: config,
 
 		inputs: &resourceFormInputs{
-			specFieldsButton:   button.New(SpecFieldsButtonID, fmt.Sprintf("%d fields", len(crd.SpecFields))),
-			statusFieldsButton: button.New(StatusFieldsButtonID, fmt.Sprintf("%d fields", len(crd.StatusFields))),
+			specFieldsButton:    button.New(SpecFieldsButtonID, fmt.Sprintf("%d fields", len(crd.SpecFields))),
+			statusFieldsButton:  button.New(StatusFieldsButtonID, fmt.Sprintf("%d fields", len(crd.StatusFields))),
+			arnPrimaryKeyButton: button.New(ARNPrimaryKeyButtonID, fmt.Sprintf("%t", crd.IsARNPrimaryKey())),
 		},
 	}
 
@@ -60,6 +62,7 @@ func (m *ResourceForm) getInputFocusOrder() []utils.Focusable {
 	return []utils.Focusable{
 		&m.inputs.specFieldsButton,
 		&m.inputs.statusFieldsButton,
+		&m.inputs.arnPrimaryKeyButton,
 	}
 }
 
@@ -102,13 +105,11 @@ func (m *ResourceForm) handleInputUpdates(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.inputs.specFieldsButton, cmd = m.inputs.specFieldsButton.Update(msg)
 	case m.inputs.statusFieldsButton.Focused():
 		m.inputs.statusFieldsButton, cmd = m.inputs.statusFieldsButton.Update(msg)
+	case m.inputs.arnPrimaryKeyButton.Focused():
+		m.inputs.arnPrimaryKeyButton, cmd = m.inputs.arnPrimaryKeyButton.Update(msg)
 	}
 
 	return *m, cmd
-}
-
-func (m *ResourceForm) getHeaderView() string {
-	return styles.HeaderStyle.Render(m.crd.Kind)
 }
 
 func (m ResourceForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -122,6 +123,15 @@ func (m ResourceForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case StatusFieldsButtonID:
 			return m, (func() tea.Msg {
 				return OpenStatusFieldsMessage{}
+			})
+		case ARNPrimaryKeyButtonID:
+			m.config.IsARNPrimaryKey = !m.config.IsARNPrimaryKey
+			m.inputs.arnPrimaryKeyButton.SetLabel(fmt.Sprintf("%t", m.config.IsARNPrimaryKey))
+			return m, (func() tea.Msg {
+				return UpdateResourceConfig{
+					Kind:   m.crd.Kind,
+					Config: m.config,
+				}
 			})
 		}
 	}
@@ -143,29 +153,30 @@ func (m ResourceForm) View() string {
 		m.crd.Plural,
 		m.inputs.specFieldsButton.View(),
 		m.inputs.statusFieldsButton.View(),
-		fmt.Sprintf("%t", m.crd.IsARNPrimaryKey()),
+		m.inputs.arnPrimaryKeyButton.View(),
 	}
 
 	renderedFieldNames := lipgloss.NewStyle().
-		AlignHorizontal(lipgloss.Right).
+		AlignHorizontal(lipgloss.Left).
+		PaddingLeft(1).
 		BorderRight(true).
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderRightForeground(lipgloss.Color("240")).
 		Render(strings.Join(fieldNames, "\n"))
 
-	content := lipgloss.JoinHorizontal(lipgloss.Right, renderedFieldNames, strings.Join(fieldViews, "\n"))
-	return lipgloss.JoinVertical(lipgloss.Top, m.getHeaderView(), content)
+	return lipgloss.JoinHorizontal(lipgloss.Right, renderedFieldNames, strings.Join(fieldViews, "\n"))
 }
 
 func (m ResourceForm) Init() tea.Cmd {
 	return nil
 }
 
-type ReturnMessage struct{}
-
-func SendReturn() tea.Msg {
-	return ReturnMessage{}
+type UpdateResourceConfig struct {
+	Kind   string
+	Config *ackconfig.ResourceConfig
 }
+
+type ReturnMessage struct{}
 
 type OpenSpecFieldsMessage struct{}
 

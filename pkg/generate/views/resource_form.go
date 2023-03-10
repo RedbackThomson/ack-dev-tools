@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/samber/lo"
 
 	ackconfig "github.com/aws-controllers-k8s/code-generator/pkg/config"
 	ackmodel "github.com/aws-controllers-k8s/code-generator/pkg/model"
@@ -17,9 +16,9 @@ import (
 )
 
 var (
-	SpecFieldsButtonID    string = "spec"
-	StatusFieldsButtonID  string = "status"
-	ARNPrimaryKeyButtonID string = "arn-primary-key"
+	ResourceFormSpecFieldsButtonID    string = "spec"
+	ResourceFormStatusFieldsButtonID  string = "status"
+	ResourceFormARNPrimaryKeyButtonID string = "arn-primary-key"
 )
 
 type resourceFormInputs struct {
@@ -49,38 +48,21 @@ func NewResourceForm(crd *ackmodel.CRD, config *ackconfig.ResourceConfig) *Resou
 		config: config,
 
 		inputs: &resourceFormInputs{
-			specFieldsButton:    button.New(SpecFieldsButtonID, fmt.Sprintf("%d fields", len(crd.SpecFields))),
-			statusFieldsButton:  button.New(StatusFieldsButtonID, fmt.Sprintf("%d fields", len(crd.StatusFields))),
-			arnPrimaryKeyButton: button.New(ARNPrimaryKeyButtonID, fmt.Sprintf("%t", crd.IsARNPrimaryKey())),
+			specFieldsButton:    button.New(ResourceFormSpecFieldsButtonID, fmt.Sprintf("%d fields", len(crd.SpecFields))),
+			statusFieldsButton:  button.New(ResourceFormStatusFieldsButtonID, fmt.Sprintf("%d fields", len(crd.StatusFields))),
+			arnPrimaryKeyButton: button.New(ResourceFormARNPrimaryKeyButtonID, fmt.Sprintf("%t", crd.IsARNPrimaryKey())),
 		},
 	}
 
 	return form
 }
 
-func (m *ResourceForm) getInputFocusOrder() []utils.Focusable {
+func (m ResourceForm) getInputFocusOrder() []utils.Focusable {
 	return []utils.Focusable{
 		&m.inputs.specFieldsButton,
 		&m.inputs.statusFieldsButton,
 		&m.inputs.arnPrimaryKeyButton,
 	}
-}
-
-func (m *ResourceForm) rotateFocus(rotateDown bool) {
-	focusOrder := m.getInputFocusOrder()
-	current, currentIdx, exists := lo.FindIndexOf(focusOrder, func(item utils.Focusable) bool {
-		return item.Focused()
-	})
-
-	if !exists {
-		focusOrder[0].Focus()
-		return
-	}
-
-	nextIndex := lo.Clamp(lo.Ternary(rotateDown, currentIdx+1, currentIdx-1), 0, len(focusOrder)-1)
-
-	current.Blur()
-	focusOrder[nextIndex].Focus()
 }
 
 func (m *ResourceForm) handleInputUpdates(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -90,9 +72,9 @@ func (m *ResourceForm) handleInputUpdates(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, resourceFormKeys.LineDown):
-			m.rotateFocus(true)
+			utils.RotateFocus(m.getInputFocusOrder(), utils.FocusRotateDown)
 		case key.Matches(msg, resourceFormKeys.LineUp):
-			m.rotateFocus(false)
+			utils.RotateFocus(m.getInputFocusOrder(), utils.FocusRotateUp)
 		case key.Matches(msg, resourceFormKeys.Quit):
 			return *m, (func() tea.Msg {
 				return ReturnMessage{}
@@ -116,15 +98,15 @@ func (m ResourceForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case button.ButtonSelectMessage:
 		switch msg.GetID() {
-		case SpecFieldsButtonID:
+		case ResourceFormSpecFieldsButtonID:
 			return m, (func() tea.Msg {
 				return OpenSpecFieldsMessage{}
 			})
-		case StatusFieldsButtonID:
+		case ResourceFormStatusFieldsButtonID:
 			return m, (func() tea.Msg {
 				return OpenStatusFieldsMessage{}
 			})
-		case ARNPrimaryKeyButtonID:
+		case ResourceFormARNPrimaryKeyButtonID:
 			m.config.IsARNPrimaryKey = !m.config.IsARNPrimaryKey
 			m.inputs.arnPrimaryKeyButton.SetLabel(fmt.Sprintf("%t", m.config.IsARNPrimaryKey))
 			return m, (func() tea.Msg {

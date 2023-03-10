@@ -6,6 +6,18 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+	blurredStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFF7DB")).
+			Background(lipgloss.Color("#888B7E")).
+			Padding(0, 1)
+
+	focusedStyle = blurredStyle.Copy().
+			Foreground(lipgloss.Color("#FFF7DB")).
+			Background(lipgloss.Color("#F25D94")).
+			Underline(true)
+)
+
 // KeyMap is the key bindings for different actions within the button.
 type KeyMap struct {
 	Select key.Binding
@@ -43,13 +55,15 @@ type Model struct {
 
 // New creates a new model with default settings.
 func New(id string, label string) Model {
+
 	return Model{
 		SelectionPrefix: "",
 		id:              id,
 		label:           label,
 		focus:           false,
 		KeyMap:          DefaultKeyMap,
-		FocusedStyle:    lipgloss.NewStyle().Background(lipgloss.Color("#777777")),
+		BlurredStyle:    blurredStyle,
+		FocusedStyle:    focusedStyle,
 	}
 }
 
@@ -107,7 +121,7 @@ func (m Model) View() string {
 		return m.FocusedStyle.Render(m.SelectionPrefix + v)
 	}
 
-	return v
+	return m.BlurredStyle.Render(v)
 }
 
 type ButtonSelectMessage struct {

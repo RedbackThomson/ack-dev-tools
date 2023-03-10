@@ -28,6 +28,8 @@ type FieldTable struct {
 	loaded bool
 
 	table table.Model
+
+	referencesDialog Dialog
 }
 
 func (m *FieldTable) initialiseFieldsTable() error {
@@ -73,6 +75,20 @@ func NewFieldTable(tableType FieldTableType, fields map[string]*ackmodel.Field, 
 	return form
 }
 
+func (m *FieldTable) listDialogs() []Dialog {
+	return []Dialog{
+		m.referencesDialog,
+	}
+}
+
+func (m *FieldTable) showReferencesDialog() {
+	selectedItem := m.table.SelectedRow()
+	selectedFieldName := selectedItem[0]
+
+	m.referencesDialog = *NewDialog("Add references to "+selectedFieldName, DefaultDialogWidth)
+	m.referencesDialog.SetVisible(true)
+}
+
 func (m FieldTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !m.loaded {
 		m.initialiseFieldsTable()
@@ -80,26 +96,48 @@ func (m FieldTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
+
+	switch {
+	case m.referencesDialog.IsVisible():
+		m.referencesDialog, cmd = m.referencesDialog.Update(msg)
+		return m, nil
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.initialiseFieldsTable()
 	case tea.KeyMsg:
 		switch {
+		case key.Matches(msg, fieldTableKeys.References):
+			m.showReferencesDialog()
 		case key.Matches(msg, fieldTableKeys.Quit):
-			return m, (func() tea.Msg {
-				return ReturnMessage{}
+			openDialog, _, isOpen := lo.FindIndexOf(m.listDialogs(), func(item Dialog) bool {
+				return item.IsVisible()
 			})
+			if !isOpen {
+				return m, (func() tea.Msg {
+					return ReturnMessage{}
+				})
+			}
+			openDialog.SetVisible(false)
+
 		case key.Matches(msg, fieldTableKeys.Select):
 			return m, nil
 		default:
 			m.table, cmd = m.table.Update(msg)
 		}
 	}
+
 	return m, cmd
 }
 
 func (m FieldTable) View() string {
-	return m.table.View()
+	switch {
+	case m.referencesDialog.IsVisible():
+		return m.referencesDialog.View()
+	default:
+		return m.table.View()
+	}
 }
 
 func (m FieldTable) Init() tea.Cmd {
@@ -107,12 +145,13 @@ func (m FieldTable) Init() tea.Cmd {
 }
 
 type fieldTableKeyMap struct {
-	Up     key.Binding
-	Down   key.Binding
-	Select key.Binding
-	Ignore key.Binding
-	Help   key.Binding
-	Quit   key.Binding
+	Up         key.Binding
+	Down       key.Binding
+	Select     key.Binding
+	Ignore     key.Binding
+	Help       key.Binding
+	References key.Binding
+	Quit       key.Binding
 }
 
 // ShortHelp returns keybindings to be shown in the mini help view. It's part
@@ -150,5 +189,9 @@ var fieldTableKeys = fieldTableKeyMap{
 	Quit: key.NewBinding(
 		key.WithKeys("esc"),
 		key.WithHelp("esc", "go back"),
+	),
+	References: key.NewBinding(
+		key.WithKeys("r"),
+		key.WithHelp("r", "set reference"),
 	),
 }

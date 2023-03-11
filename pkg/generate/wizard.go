@@ -124,6 +124,7 @@ func (w Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case fieldsView:
 			w.state = resourceDetails
 		case fieldReferencesView:
+			w.fieldTable.InitialiseFieldsTable()
 			w.state = fieldsView
 		}
 		w.breadcrumbs.Pop()

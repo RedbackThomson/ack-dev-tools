@@ -1,6 +1,8 @@
 package views
 
 import (
+	"sort"
+
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
@@ -30,35 +32,53 @@ type FieldTable struct {
 	table table.Model
 }
 
-func (m *FieldTable) fieldHasReferences(fieldName string) bool {
+func (m *FieldTable) getFieldConfig(fieldName string) *ackconfig.FieldConfig {
 	if m.config.Fields == nil {
-		return false
+		return nil
 	}
 	config, exists := m.config.Fields[fieldName]
 	if !exists {
-		return false
+		return nil
 	}
 
-	return config.References == nil
+	return config
 }
 
-func (m *FieldTable) initialiseFieldsTable() error {
+func (m *FieldTable) InitialiseFieldsTable() error {
 	style := styles.DefaultTableStyle
 
 	// subtract padding for every header cell
-	width := constants.UsableViewSize.Width - style.Header.GetHorizontalPadding()*2
+	width := constants.UsableViewSize.Width - style.Header.GetHorizontalPadding()*7
 	height := constants.UsableViewSize.Height
 
+	nameColumnWidth := 30
+	boolColumnWidth := (width - nameColumnWidth) / 6
+
 	columns := []table.Column{
-		{Title: "Name", Width: width - 10},
-		{Title: "References", Width: 10},
+		{Title: "Name", Width: nameColumnWidth},
+		{Title: "Is Required", Width: boolColumnWidth},
+		{Title: "Is Primary Key", Width: boolColumnWidth},
+		{Title: "Is Secret", Width: boolColumnWidth},
+		{Title: "Is Immutable", Width: boolColumnWidth},
+		{Title: "Is ARN", Width: boolColumnWidth},
+		{Title: "References", Width: boolColumnWidth},
 	}
 
 	rows := lo.MapToSlice(m.fields, func(key string, field *ackmodel.Field) table.Row {
+		fieldConfig := m.getFieldConfig(field.Names.Camel)
+
 		return table.Row{
 			field.Names.Camel,
-			lo.Ternary(m.fieldHasReferences(field.Names.Camel), " ✓", ""),
+			lo.Ternary(fieldConfig != nil && fieldConfig.IsRequired != nil && *fieldConfig.IsRequired, " ✓", ""),
+			lo.Ternary(fieldConfig != nil && fieldConfig.IsPrimaryKey, " ✓", ""),
+			lo.Ternary(fieldConfig != nil && fieldConfig.IsSecret, " ✓", ""),
+			lo.Ternary(fieldConfig != nil && fieldConfig.IsImmutable, " ✓", ""),
+			lo.Ternary(fieldConfig != nil && fieldConfig.IsARN, " ✓", ""),
+			lo.Ternary(fieldConfig != nil && fieldConfig.References != nil, " ✓", ""),
 		}
+	})
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i][0] < rows[j][0]
 	})
 
 	t := table.New(
@@ -101,7 +121,7 @@ func (m *FieldTable) showReferencesForm() tea.Msg {
 
 func (m FieldTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !m.loaded {
-		m.initialiseFieldsTable()
+		m.InitialiseFieldsTable()
 		m.loaded = true
 	}
 
@@ -109,7 +129,7 @@ func (m FieldTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.initialiseFieldsTable()
+		m.InitialiseFieldsTable()
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, fieldTableKeys.References):

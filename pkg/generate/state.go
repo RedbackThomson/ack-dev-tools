@@ -19,6 +19,7 @@ const (
 	resourcesSummary sessionState = iota
 	resourceDetails
 	fieldsView
+	fieldReferencesView
 )
 
 type Wizard struct {
@@ -39,6 +40,8 @@ type Wizard struct {
 
 	selectedResourceForm views.ResourceForm
 	fieldTable           views.FieldTable
+
+	fieldReferencesForm views.ReferencesForm
 }
 
 func (w Wizard) Config() *ackconfig.Config {

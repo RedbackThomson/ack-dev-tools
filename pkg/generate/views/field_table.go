@@ -28,21 +28,36 @@ type FieldTable struct {
 	loaded bool
 
 	table table.Model
+}
 
-	referencesDialog Dialog
+func (m *FieldTable) fieldHasReferences(fieldName string) bool {
+	if m.config.Fields == nil {
+		return false
+	}
+	config, exists := m.config.Fields[fieldName]
+	if !exists {
+		return false
+	}
+
+	return config.References == nil
 }
 
 func (m *FieldTable) initialiseFieldsTable() error {
-	width := constants.UsableViewSize.Width
+	style := styles.DefaultTableStyle
+
+	// subtract padding for every header cell
+	width := constants.UsableViewSize.Width - style.Header.GetHorizontalPadding()*2
 	height := constants.UsableViewSize.Height
 
 	columns := []table.Column{
-		{Title: "Name", Width: width},
+		{Title: "Name", Width: width - 10},
+		{Title: "References", Width: 10},
 	}
 
 	rows := lo.MapToSlice(m.fields, func(key string, field *ackmodel.Field) table.Row {
 		return table.Row{
 			field.Names.Camel,
+			lo.Ternary(m.fieldHasReferences(field.Names.Camel), " ✓", ""),
 		}
 	})
 
@@ -75,18 +90,13 @@ func NewFieldTable(tableType FieldTableType, fields map[string]*ackmodel.Field, 
 	return form
 }
 
-func (m *FieldTable) listDialogs() []Dialog {
-	return []Dialog{
-		m.referencesDialog,
-	}
-}
-
-func (m *FieldTable) showReferencesDialog() {
+func (m *FieldTable) showReferencesForm() tea.Msg {
 	selectedItem := m.table.SelectedRow()
 	selectedFieldName := selectedItem[0]
 
-	m.referencesDialog = *NewDialog("Add references to "+selectedFieldName, DefaultDialogWidth)
-	m.referencesDialog.SetVisible(true)
+	return OpenFieldReferences{
+		FieldName: selectedFieldName,
+	}
 }
 
 func (m FieldTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -97,29 +107,17 @@ func (m FieldTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 
-	switch {
-	case m.referencesDialog.IsVisible():
-		m.referencesDialog, cmd = m.referencesDialog.Update(msg)
-		return m, nil
-	}
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.initialiseFieldsTable()
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, fieldTableKeys.References):
-			m.showReferencesDialog()
+			return m, m.showReferencesForm
 		case key.Matches(msg, fieldTableKeys.Quit):
-			openDialog, _, isOpen := lo.FindIndexOf(m.listDialogs(), func(item Dialog) bool {
-				return item.IsVisible()
+			return m, (func() tea.Msg {
+				return ReturnMessage{}
 			})
-			if !isOpen {
-				return m, (func() tea.Msg {
-					return ReturnMessage{}
-				})
-			}
-			openDialog.SetVisible(false)
 
 		case key.Matches(msg, fieldTableKeys.Select):
 			return m, nil
@@ -132,16 +130,15 @@ func (m FieldTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m FieldTable) View() string {
-	switch {
-	case m.referencesDialog.IsVisible():
-		return m.referencesDialog.View()
-	default:
-		return m.table.View()
-	}
+	return m.table.View()
 }
 
 func (m FieldTable) Init() tea.Cmd {
 	return nil
+}
+
+type OpenFieldReferences struct {
+	FieldName string
 }
 
 type fieldTableKeyMap struct {

@@ -15,13 +15,38 @@ import (
 	"github.com/aws-controllers-k8s/dev-tools/pkg/generate/views"
 )
 
-func (w *Wizard) upsertResourceConfig(kind string) *ackconfig.ResourceConfig {
+func (w *Wizard) ensureResourceConfig(kind string) {
 	_, exists := w.config.Resources[kind]
 	if !exists {
 		w.config.Resources[kind] = ackconfig.ResourceConfig{}
 	}
+}
 
-	return lo.ToPtr(w.config.Resources[kind])
+func (w *Wizard) ensureFieldConfig(kind string, fieldName string) {
+	w.ensureResourceConfig(kind)
+
+	resourceConfig := w.config.Resources[kind]
+
+	if resourceConfig.Fields == nil {
+		resourceConfig.Fields = make(map[string]*ackconfig.FieldConfig)
+	}
+
+	if _, exists := resourceConfig.Fields[fieldName]; !exists {
+		resourceConfig.Fields[fieldName] = &ackconfig.FieldConfig{}
+	}
+
+	w.config.Resources[kind] = resourceConfig
+}
+
+func (w *Wizard) ensureFieldReferencesConfig(kind string, fieldName string) *ackconfig.ReferencesConfig {
+	w.ensureFieldConfig(kind, fieldName)
+
+	references := w.config.Resources[kind].Fields[fieldName].References
+	if references == nil {
+		w.config.Resources[kind].Fields[fieldName].References = &ackconfig.ReferencesConfig{}
+	}
+
+	return w.config.Resources[kind].Fields[fieldName].References
 }
 
 func (w *Wizard) getCRDByKind(kind string) *ackmodel.CRD {
@@ -39,6 +64,8 @@ func (w Wizard) currentView() views.View {
 		return w.resourceTable
 	case fieldsView:
 		return w.fieldTable
+	case fieldReferencesView:
+		return w.fieldReferencesForm
 	default:
 		panic(fmt.Errorf(ErrNoCurrentViewDefined, w.state))
 	}
@@ -64,6 +91,12 @@ func (w *Wizard) replaceCurrentView(r tea.Model) {
 			panic(fmt.Errorf(ErrAssertUpdate, "FieldTable"))
 		}
 		w.fieldTable = fieldTable
+	case fieldReferencesView:
+		referencesForm, ok := r.(views.ReferencesForm)
+		if !ok {
+			panic(fmt.Errorf(ErrAssertUpdate, "ReferencesForm"))
+		}
+		w.fieldReferencesForm = referencesForm
 	default:
 		panic(fmt.Errorf(ErrNoReplaceViewDefined, w.state))
 	}
@@ -90,24 +123,31 @@ func (w Wizard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			w.state = resourcesSummary
 		case fieldsView:
 			w.state = resourceDetails
+		case fieldReferencesView:
+			w.state = fieldsView
 		}
 		w.breadcrumbs.Pop()
 		return w, nil
 	case views.SelectResource:
 		crd := w.getCRDByKind(msg.ResourceKind)
-		w.selectedResourceForm = *views.NewResourceForm(crd, w.upsertResourceConfig(msg.ResourceKind))
+		w.ensureResourceConfig(crd.Kind)
+		w.selectedResourceForm = *views.NewResourceForm(crd, lo.ToPtr(w.config.Resources[crd.Kind]))
 		w.breadcrumbs.Push(msg.ResourceKind)
 		w.state = resourceDetails
 	case views.OpenSpecFieldsMessage:
 		crd := w.selectedResourceForm.CRD()
-		w.fieldTable = *views.NewFieldTable(views.FieldTableTypeSpec, crd.SpecFields, w.upsertResourceConfig(crd.Kind))
+		w.fieldTable = *views.NewFieldTable(views.FieldTableTypeSpec, crd.SpecFields, lo.ToPtr(w.config.Resources[crd.Kind]))
 		w.breadcrumbs.Push((string)(views.FieldTableTypeSpec))
 		w.state = fieldsView
 	case views.OpenStatusFieldsMessage:
 		crd := w.selectedResourceForm.CRD()
-		w.fieldTable = *views.NewFieldTable(views.FieldTableTypeStatus, crd.StatusFields, w.upsertResourceConfig(crd.Kind))
+		w.fieldTable = *views.NewFieldTable(views.FieldTableTypeStatus, crd.StatusFields, lo.ToPtr(w.config.Resources[crd.Kind]))
 		w.breadcrumbs.Push((string)(views.FieldTableTypeStatus))
 		w.state = fieldsView
+	case views.OpenFieldReferences:
+		crd := w.selectedResourceForm.CRD()
+		w.fieldReferencesForm = *views.NewReferencesForm(w.service, msg.FieldName, crd, w.ensureFieldReferencesConfig(crd.Kind, msg.FieldName))
+		w.state = fieldReferencesView
 	case views.UpdateResourceConfig:
 		w.config.Resources[msg.Kind] = *msg.Config
 	case tea.KeyMsg:

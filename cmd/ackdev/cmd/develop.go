@@ -129,7 +129,7 @@ func developController(cmd *cobra.Command, args []string) (err error) {
 
 func generateSingleController(ctx context.Context, svcAlias string) error {
 	cfg := ackgenerate.DefaultConfig
-	modelName := strings.ToLower(cfg.ModelName)
+	modelName := strings.ToLower(cfg.SDKNames.Model)
 	if modelName == "" {
 		modelName = svcAlias
 	}
